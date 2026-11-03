@@ -11,3 +11,4 @@
 - Choose 1 to 12 beats per bar, with an optional accent on the first.
 - Works offline once opened, and can be added to your home screen.
 - Keeps the screen awake while playing.
+- Pipeline check.

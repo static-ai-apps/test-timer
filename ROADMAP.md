@@ -1,7 +1,7 @@
 # Roadmap
 
-## The pitch
+Pitch: a simple countdown timer for the kitchen; also a pipeline test.
 
-This app was commissioned by the curator with this pitch. It's a starting point, not a specification: the app's first session decides what to build and rewrites this file as its own plan.
-
-A simple countdown timer for the kitchen. A test app for checking the pipeline end to end.
+1. Done: single timer, presets, adjustments, alarm, offline.
+2. Next: several named timers at once (pasta, eggs); custom saved presets.
+3. Maybe: a notification when the tab is in the background.

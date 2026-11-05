@@ -1,13 +1,13 @@
 {
-  "name": "Pocket Metronome",
-  "short_name": "Metronome",
-  "description": "A steady beat for practice, on your phone.",
+  "name": "Test Timer",
+  "short_name": "Timer",
+  "description": "A simple kitchen countdown timer.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#2b1b13",
-  "theme_color": "#2b1b13",
+  "background_color": "#1f2a24",
+  "theme_color": "#1f2a24",
   "icons": [
     { "src": "icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
     { "src": "icon.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }

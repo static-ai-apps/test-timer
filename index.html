@@ -3,537 +3,144 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Pocket Metronome</title>
-<meta name="description" content="A steady beat for practice, on your phone. Works offline.">
-<meta name="theme-color" content="#2b1b13" media="(prefers-color-scheme: dark)">
-<meta name="theme-color" content="#e6decf" media="(prefers-color-scheme: light)">
+<title>Test Timer: Kitchen Countdown</title>
+<meta name="description" content="A simple countdown timer for the kitchen. Works offline.">
+<meta name="theme-color" content="#1f2a24">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.png" type="image/png">
 <link rel="apple-touch-icon" href="icon.png">
-<!-- SPEC §10, ADVICE §17: one description in fixed schema.org terms. A new app rewrites it; `url` must be its own. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "WebApplication",
-  "name": "Pocket Metronome",
-  "disambiguatingDescription": "A steady beat for practice, on your phone.",
-  "description": "A metronome for practicing on a phone. Set a tempo by slider, buttons or tapping, choose beats per bar, and keep playing offline.",
-  "url": "https://static-ai-apps.github.io/app-template/",
-  "applicationCategory": "MultimediaApplication",
-  "featureList": ["Tempo from 20 to 300 BPM", "Tap tempo", "1 to 12 beats per bar", "Accented first beat", "Keeps the screen awake while playing", "Works offline"],
-  "audience": { "@type": "Audience", "audienceType": "Musicians practicing alone or in small groups" },
+  "name": "Test Timer",
+  "disambiguatingDescription": "A big, simple countdown timer for the kitchen.",
+  "description": "A countdown timer for cooking. Pick a preset or dial in minutes and seconds, start, and get a beep and vibration when time is up. Works offline.",
+  "url": "https://static-ai-apps.github.io/test-timer/",
+  "applicationCategory": "UtilitiesApplication",
+  "featureList": ["Quick presets", "Set minutes and seconds", "Add a minute while running", "Beep and vibration at zero", "Keeps the screen awake while running", "Works offline"],
+  "audience": { "@type": "Audience", "audienceType": "Home cooks who want a simple timer" },
   "inLanguage": "en",
-  "browserRequirements": "Needs Web Audio",
-  "accessibilityFeature": ["fullKeyboardControl"],
+  "browserRequirements": "Needs Web Audio for the beep",
   "isAccessibleForFree": true,
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-  "image": "https://static-ai-apps.github.io/app-template/icon.png",
+  "image": "https://static-ai-apps.github.io/test-timer/icon.png",
   "isPartOf": { "@type": "WebSite", "name": "Static AI Apps", "url": "https://static-ai-apps.github.io/" }
 }
 </script>
-<!--
-  static-ai-apps app template: example app.
-
-  This metronome exists to show the advice in ADVICE.md (instructions branch)
-  in working code. A new app replaces this file entirely. Comments marked
-  "ADVICE" point to the relevant section.
--->
 <style>
-  :root {
-    color-scheme: light dark;
-    /* Walnut case, brass weight, ivory dial, lacquer downbeat. */
-    --bg: #2b1b13;
-    --surface: #3a2619;
-    --line: #4d3424;
-    --text: #f1e6d0;
-    --muted: #b49d84;
-    --brass: #d1ad55;
-    --brass-ink: #2b1b13;
-    --lacquer: #c4483d;
-    --focus: #f6d98a;
-  }
-  @media (prefers-color-scheme: light) {
-    :root {
-      --bg: #e6decf;
-      --surface: #f2ece0;
-      --line: #cdbfa6;
-      --text: #2b1b13;
-      --muted: #6d5a47;
-      --brass: #8a6a1e;
-      --brass-ink: #fbf6ea;
-      --lacquer: #a32e25;
-      --focus: #2b1b13;
-    }
-  }
-
+  :root { color-scheme: dark; --bg:#1f2a24; --surface:#2b3a32; --line:#3e5247; --text:#f4efe2; --muted:#a9b8ac; --accent:#f2b84b; --ink:#1f2a24; --done:#e0584a; }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    -webkit-text-size-adjust: 100%;
-  }
-
-  /* ADVICE §5: dvh, not vh; safe areas for notches and home indicators. */
-  .app {
-    min-height: 100dvh;
-    max-width: 30rem;
-    margin: 0 auto;
-    display: grid;
-    grid-template-rows: auto 1fr auto auto;
-    padding:
-      calc(env(safe-area-inset-top) + 12px)
-      calc(env(safe-area-inset-right) + 20px)
-      calc(env(safe-area-inset-bottom) + 12px)
-      calc(env(safe-area-inset-left) + 20px);
-    gap: 8px;
-  }
-
-  header h1 {
-    margin: 0;
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--muted);
-  }
-
-  /* The one memorable thing: a pendulum whose weight slides with the tempo. */
-  .stage {
-    display: grid;
-    place-items: center;
-    min-height: 0;
-  }
-  .pendulum { width: min(62vw, 15rem); height: auto; max-height: 40dvh; overflow: visible; }
-  .case { fill: var(--surface); stroke: var(--line); stroke-width: 2; }
-  .scale line { stroke: var(--line); stroke-width: 2; stroke-linecap: round; }
-  .arm line { stroke: var(--brass); stroke-width: 4; stroke-linecap: round; }
-  .weight { fill: var(--brass); }
-  .pivot { fill: var(--brass); }
-
-  .readout { text-align: center; }
-  .bpm {
-    display: block;
-    font-family: ui-rounded, "SF Pro Rounded", system-ui, sans-serif;
-    font-weight: 800;
-    font-size: clamp(4.5rem, 24vw, 6.5rem);
-    line-height: 1;
-    letter-spacing: -0.03em;
-    font-variant-numeric: tabular-nums;
-  }
-  .bpm-unit { color: var(--muted); font-size: 0.95rem; }
-
-  .beats {
-    display: flex;
-    justify-content: center;
-    gap: 10px;
-    margin: 14px 0 4px;
-    min-height: 18px;
-    flex-wrap: wrap;
-  }
-  .dot {
-    width: 14px; height: 14px; border-radius: 50%;
-    border: 2px solid var(--line);
-    transition: background-color 60ms linear;
-  }
-  .dot.down { border-color: var(--lacquer); }
-  .dot.on { background: var(--brass); border-color: var(--brass); }
-  .dot.down.on { background: var(--lacquer); border-color: var(--lacquer); }
-
-  .controls { display: grid; gap: 14px; padding-top: 8px; }
-
-  .tempo-row { display: grid; grid-template-columns: 48px 1fr 48px; gap: 12px; align-items: center; }
-
-  /* ADVICE §5: 44px+ targets; touch-action stops double-tap zoom on fast taps. */
-  button {
-    font: inherit;
-    color: inherit;
-    min-height: 48px;
-    min-width: 48px;
-    border-radius: 12px;
-    border: 2px solid var(--line);
-    background: var(--surface);
-    touch-action: manipulation;
-    cursor: pointer;
-  }
-  button:focus-visible, input:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
-  }
-  .step { font-size: 1.5rem; line-height: 1; }
-
-  input[type="range"] {
-    width: 100%;
-    height: 48px;
-    margin: 0;
-    accent-color: var(--brass);
-    touch-action: manipulation;
-  }
-
-  .settings { display: flex; gap: 12px; justify-content: space-between; align-items: center; flex-wrap: wrap; }
-  .meter { display: flex; align-items: center; gap: 8px; }
-  .meter .value { min-width: 2ch; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
-  .meter-label { color: var(--muted); }
-
-  .toggle { padding: 0 14px; display: inline-flex; align-items: center; gap: 10px; }
-  .toggle::before {
-    content: ""; width: 12px; height: 12px; border-radius: 50%;
-    border: 2px solid var(--muted);
-  }
-  .toggle[aria-pressed="true"] { border-color: var(--lacquer); }
-  .toggle[aria-pressed="true"]::before { background: var(--lacquer); border-color: var(--lacquer); }
-
-  .main-row { display: grid; grid-template-columns: 1fr auto; gap: 12px; }
-  .start {
-    background: var(--brass);
-    border-color: var(--brass);
-    color: var(--brass-ink);
-    font-weight: 700;
-    font-size: 1.25rem;
-    min-height: 64px;
-  }
-  .tap { padding: 0 22px; font-weight: 600; min-height: 64px; }
-
-  .hint { margin: 0; color: var(--muted); font-size: 0.875rem; text-align: center; min-height: 1.3em; }
-
-  footer {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    color: var(--muted);
-    font-size: 0.875rem;
-    padding-top: 8px;
-    border-top: 1px solid var(--line);
-  }
-  footer { flex-wrap: wrap; }
-  footer .links { display: flex; gap: 16px; }
-  footer a { color: inherit; text-underline-offset: 3px; }
-  footer a:hover { color: var(--text); }
-
-  .sr-only {
-    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
-  }
-
-  /* ADVICE §10: no swinging for people who asked for less motion. */
-  @media (prefers-reduced-motion: reduce) {
-    .dot { transition: none; }
-  }
+  body { background: var(--bg); color: var(--text); font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .app { min-height: 100dvh; max-width: 30rem; margin: 0 auto; display: grid; grid-template-rows: auto 1fr auto auto; gap: 12px;
+    padding: calc(env(safe-area-inset-top) + 12px) calc(env(safe-area-inset-right) + 20px) calc(env(safe-area-inset-bottom) + 12px) calc(env(safe-area-inset-left) + 20px); }
+  h1 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--muted); }
+  .stage { display: grid; place-items: center; }
+  .dial { position: relative; width: min(78vw, 18rem); aspect-ratio: 1; }
+  .dial svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .track { fill: none; stroke: var(--surface); stroke-width: 10; }
+  .prog { fill: none; stroke: var(--accent); stroke-width: 10; stroke-linecap: round; }
+  .done .prog { stroke: var(--done); }
+  .time { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; align-content: center; }
+  .digits { font-size: clamp(3.2rem, 17vw, 4.6rem); font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; line-height: 1; }
+  .done .digits { color: var(--done); animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: .35; } }
+  @media (prefers-reduced-motion: reduce) { .done .digits { animation: none; } }
+  .status { color: var(--muted); font-size: .9rem; min-height: 1.4em; }
+  .adjust { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  button { font: inherit; color: inherit; min-height: 48px; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; touch-action: manipulation; cursor: pointer; }
+  button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  button:disabled { opacity: .4; cursor: default; }
+  .main { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; }
+  .go { background: var(--accent); color: var(--ink); border-color: var(--accent); font-weight: 700; font-size: 1.1rem; min-height: 56px; }
+  .presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  footer { text-align: center; font-size: .85rem; }
+  footer a { color: var(--muted); }
 </style>
 </head>
 <body>
-<main class="app">
-  <header>
-    <h1>Pocket Metronome</h1>
-  </header>
-
-  <section class="stage" aria-label="Pendulum">
-    <svg class="pendulum" viewBox="0 0 200 240" aria-hidden="true">
-      <polygon class="case" points="40,232 160,232 124,14 76,14"/>
-      <g class="scale">
-        <line x1="92" y1="40" x2="108" y2="40"/>
-        <line x1="94" y1="70" x2="106" y2="70"/>
-        <line x1="92" y1="100" x2="108" y2="100"/>
-        <line x1="94" y1="130" x2="106" y2="130"/>
-        <line x1="92" y1="160" x2="108" y2="160"/>
-      </g>
-      <g class="arm" id="arm">
-        <line x1="100" y1="208" x2="100" y2="22"/>
-        <rect class="weight" id="weight" x="88" y="60" width="24" height="18" rx="3"/>
-      </g>
-      <circle class="pivot" cx="100" cy="208" r="7"/>
-    </svg>
+<main class="app" id="app">
+  <header><h1>Kitchen timer</h1></header>
+  <div class="stage">
+    <div class="dial">
+      <svg viewBox="0 0 100 100" aria-hidden="true"><circle class="track" cx="50" cy="50" r="44"/><circle class="prog" id="prog" cx="50" cy="50" r="44" pathLength="100" stroke-dasharray="100" stroke-dashoffset="0"/></svg>
+      <div class="time"><div><div class="digits" id="digits" role="timer" aria-live="off">05:00</div><div class="status" id="status"></div></div></div>
+    </div>
+  </div>
+  <section class="controls" style="display:grid;gap:8px">
+    <div class="adjust" aria-label="Adjust time">
+      <button data-add="-60">−1 min</button><button data-add="60">+1 min</button>
+      <button data-add="-10">−10 s</button><button data-add="10">+10 s</button>
+    </div>
+    <div class="presets" aria-label="Presets">
+      <button data-set="60">1 min</button><button data-set="180">3 min</button><button data-set="300">5 min</button><button data-set="600">10 min</button>
+    </div>
+    <div class="main"><button id="reset">Reset</button><button id="go" class="go">Start</button></div>
   </section>
-
-  <section class="controls" aria-label="Metronome controls">
-    <div class="readout">
-      <span class="bpm" id="bpm">96</span>
-      <span class="bpm-unit">beats per minute</span>
-      <div class="beats" id="beats" aria-hidden="true"></div>
-    </div>
-
-    <div class="tempo-row">
-      <button class="step" id="slower" aria-label="Slower">−</button>
-      <label class="sr-only" for="tempo">Tempo</label>
-      <input type="range" id="tempo" min="20" max="300" step="1" value="96">
-      <button class="step" id="faster" aria-label="Faster">+</button>
-    </div>
-
-    <div class="settings">
-      <div class="meter" role="group" aria-labelledby="meter-label">
-        <span class="meter-label" id="meter-label">Beats per bar</span>
-        <button id="fewer" aria-label="Fewer beats per bar">−</button>
-        <span class="value" id="meter" aria-live="polite">4</span>
-        <button id="more" aria-label="More beats per bar">+</button>
-      </div>
-      <button class="toggle" id="accent" aria-pressed="true">Accent first beat</button>
-    </div>
-
-    <div class="main-row">
-      <button class="start" id="start">Start</button>
-      <button class="tap" id="tap">Tap tempo</button>
-    </div>
-    <p class="hint" id="hint"></p>
-  </section>
-
-  <footer>
-    <span>Works offline once opened.</span>
-    <span class="links">
-      <!-- ADVICE §15: the changelog is published next to the app. -->
-      <a href="CHANGELOG.md">What's new</a>
-      <!-- ADVICE §2: one plain link, where a satisfied user would look. No script, no nagging. -->
-      <a id="star" href="https://github.com/" hidden>★ Star on GitHub</a>
-    </span>
-  </footer>
+  <footer><a href="https://github.com/static-ai-apps/test-timer">★ Star on GitHub</a></footer>
 </main>
-
 <script>
-"use strict";
+(() => {
+  "use strict";
+  const REPO = location.pathname.split("/").filter(Boolean)[0] || "test-timer";
+  const KEY = REPO + ":duration";
+  const $ = (id) => document.getElementById(id);
+  const MAX = 99 * 3600 + 59 * 60 + 59;
+  let duration = 300, remaining = 300, endAt = 0, running = false, finished = false, tick = 0, wake = null, ctx = null, beepTimer = 0;
 
-/* ---------- Identity and storage (ADVICE §7, SPEC §7) ---------- */
+  try { const v = parseInt(localStorage.getItem(KEY), 10); if (v >= 1 && v <= MAX) duration = remaining = v; } catch (e) {}
 
-// The first path segment is the repo name on GitHub Pages. Derived, not
-// hard-coded, so the prefix stays right if the repo is renamed or copied.
-const APP_ID = (() => {
-  const seg = location.protocol.startsWith("http")
-    ? location.pathname.split("/").filter(Boolean)[0]
-    : null;
-  return seg && !seg.includes(".") ? seg : "local-app";
-})();
-const OWNER = location.hostname.endsWith(".github.io")
-  ? location.hostname.slice(0, -".github.io".length)
-  : null;
-
-const store = {
-  key: (name) => `${APP_ID}:${name}`,
-  get(name) {
-    try { return JSON.parse(localStorage.getItem(this.key(name))); }
-    catch { return null; }
-  },
-  set(name, value) {
-    try { localStorage.setItem(this.key(name), JSON.stringify(value)); }
-    catch { /* private mode or full: the app still works, it just forgets */ }
-  },
-};
-
-/* ---------- State ---------- */
-
-const MIN_BPM = 20, MAX_BPM = 300, MIN_BEATS = 1, MAX_BEATS = 12;
-const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
-const isInt = (n) => Number.isInteger(n);
-
-// Stored data may have been written by another app or tampered with: validate.
-const saved = store.get("settings") || {};
-const state = {
-  bpm: isInt(saved.bpm) ? clamp(saved.bpm, MIN_BPM, MAX_BPM) : 96,
-  beats: isInt(saved.beats) ? clamp(saved.beats, MIN_BEATS, MAX_BEATS) : 4,
-  accent: typeof saved.accent === "boolean" ? saved.accent : true,
-  playing: false,
-};
-// ADVICE §9: save when settings change, not on unload.
-const save = () => store.set("settings", { bpm: state.bpm, beats: state.beats, accent: state.accent });
-
-/* ---------- Elements ---------- */
-
-const $ = (id) => document.getElementById(id);
-const el = {
-  bpm: $("bpm"), tempo: $("tempo"), slower: $("slower"), faster: $("faster"),
-  meter: $("meter"), fewer: $("fewer"), more: $("more"), accent: $("accent"),
-  start: $("start"), tap: $("tap"), hint: $("hint"), beats: $("beats"),
-  arm: $("arm"), weight: $("weight"), star: $("star"),
-};
-const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
-
-/* ---------- Rendering ---------- */
-
-function renderBeats() {
-  el.beats.replaceChildren();
-  for (let i = 0; i < state.beats; i++) {
-    const d = document.createElement("span");
-    d.className = "dot" + (i === 0 && state.accent && state.beats > 1 ? " down" : "");
-    el.beats.append(d);
-  }
-}
-
-function render() {
-  el.bpm.textContent = state.bpm;
-  el.tempo.value = state.bpm;
-  el.tempo.setAttribute("aria-valuetext", `${state.bpm} beats per minute`);
-  el.meter.textContent = state.beats;
-  el.accent.setAttribute("aria-pressed", String(state.accent));
-  el.start.textContent = state.playing ? "Stop" : "Start";
-  // Like a real metronome: slow tempo, weight high on the arm; fast, weight low.
-  const t = (state.bpm - MIN_BPM) / (MAX_BPM - MIN_BPM);
-  el.weight.setAttribute("y", String(30 + t * 130));
-  renderBeats();
-}
-
-function setBpm(n) {
-  state.bpm = clamp(Math.round(n), MIN_BPM, MAX_BPM);
-  save(); render();
-}
-function setBeats(n) {
-  state.beats = clamp(n, MIN_BEATS, MAX_BEATS);
-  save(); render();
-}
-
-/* ---------- Audio (ADVICE §8) ---------- */
-
-let ctx = null;
-let nextNoteTime = 0;
-let beatIndex = 0;
-const scheduled = []; // { beat, time } for drawing in sync with the audio clock
-
-// The ticker runs in a worker, built from a Blob so it stays in this file.
-// Main-thread timers get throttled in background tabs; worker timers less so.
-const ticker = new Worker(URL.createObjectURL(new Blob([`
-  let id = null;
-  onmessage = (e) => {
-    if (e.data === "start") { clearInterval(id); id = setInterval(() => postMessage("tick"), 25); }
-    if (e.data === "stop") { clearInterval(id); id = null; }
+  const fmt = (s) => {
+    const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60, p = (n) => String(n).padStart(2, "0");
+    return (h ? h + ":" : "") + p(m) + ":" + p(sec);
   };
-`], { type: "text/javascript" })));
-ticker.onmessage = schedule;
-
-function click(time, strong) {
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.frequency.value = strong ? 1568 : 1046; // G6 and C6: bright, easy to hear
-  gain.gain.setValueAtTime(0.0001, time);
-  gain.gain.exponentialRampToValueAtTime(strong ? 0.9 : 0.6, time + 0.002);
-  gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.05);
-  osc.connect(gain).connect(ctx.destination);
-  osc.start(time);
-  osc.stop(time + 0.06);
-}
-
-function schedule() {
-  // Look further ahead when hidden, because ticks may arrive late.
-  const ahead = document.hidden ? 1.5 : 0.12;
-  while (nextNoteTime < ctx.currentTime + ahead) {
-    const strong = state.accent && state.beats > 1 && beatIndex === 0;
-    click(nextNoteTime, strong);
-    scheduled.push({ beat: beatIndex, time: nextNoteTime });
-    nextNoteTime += 60 / state.bpm;
-    beatIndex = (beatIndex + 1) % state.beats;
+  function render() {
+    const left = running ? Math.max(0, Math.ceil((endAt - Date.now()) / 1000)) : remaining;
+    $("digits").textContent = fmt(left);
+    $("prog").style.strokeDashoffset = finished ? 100 : String(100 - 100 * (duration ? left / duration : 0));
+    $("app").classList.toggle("done", finished);
+    $("go").textContent = finished ? "Stop" : running ? "Pause" : (remaining < duration ? "Resume" : "Start");
+    $("status").textContent = finished ? "Time's up!" : running ? "Running" : remaining < duration ? "Paused" : "";
+    document.title = (running || finished) ? fmt(left) + " – Test Timer" : "Test Timer: Kitchen Countdown";
+    document.querySelectorAll("[data-add],[data-set]").forEach((b) => b.disabled = finished);
+    if (running && left <= 0) finish();
   }
-}
-
-async function start() {
-  // Must happen inside the tap that started playback, or browsers stay silent.
-  ctx ||= new (window.AudioContext || window.webkitAudioContext)();
-  if (ctx.state !== "running") await ctx.resume();
-  beatIndex = 0;
-  scheduled.length = 0;
-  nextNoteTime = ctx.currentTime + 0.06;
-  state.playing = true;
-  ticker.postMessage("start");
-  schedule();
-  requestWakeLock();
+  function save() { try { localStorage.setItem(KEY, String(duration)); } catch (e) {} }
+  async function lock() { try { if (navigator.wakeLock && !wake) { wake = await navigator.wakeLock.request("screen"); wake.addEventListener("release", () => wake = null); } } catch (e) {} }
+  function unlock() { try { wake && wake.release(); } catch (e) {} wake = null; }
+  function audio() { try { ctx = ctx || new (window.AudioContext || window.webkitAudioContext)(); if (ctx.state === "suspended") ctx.resume(); } catch (e) {} }
+  function beep() {
+    try {
+      if (!ctx) return;
+      for (let i = 0; i < 3; i++) {
+        const t = ctx.currentTime + i * 0.25, o = ctx.createOscillator(), g = ctx.createGain();
+        o.frequency.value = 880; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.4, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+        o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + 0.2);
+      }
+    } catch (e) {}
+    try { navigator.vibrate && navigator.vibrate([200, 100, 200, 100, 200]); } catch (e) {}
+  }
+  function finish() {
+    running = false; finished = true; remaining = 0; clearInterval(tick); unlock();
+    beep(); beepTimer = setInterval(beep, 3000); render();
+  }
+  function start() { audio(); if (remaining <= 0) remaining = duration; endAt = Date.now() + remaining * 1000; running = true; clearInterval(tick); tick = setInterval(render, 250); lock(); render(); }
+  function pause() { remaining = Math.max(1, Math.ceil((endAt - Date.now()) / 1000)); running = false; clearInterval(tick); unlock(); render(); }
+  function reset() { running = false; finished = false; clearInterval(tick); clearInterval(beepTimer); unlock(); remaining = duration; render(); }
+  function add(d) {
+    if (running) { const left = Math.ceil((endAt - Date.now()) / 1000); const n = Math.min(MAX, Math.max(1, left + d)); endAt = Date.now() + n * 1000; duration = Math.max(duration, n); }
+    else { const base = remaining < duration ? remaining : duration; const n = Math.min(MAX, Math.max(1, base + d)); remaining = n; if (n > duration || remaining === n && base === duration) duration = n; save(); }
+    render();
+  }
+  $("go").onclick = () => { if (finished) reset(); else if (running) pause(); else start(); };
+  $("reset").onclick = reset;
+  document.querySelectorAll("[data-add]").forEach((b) => b.onclick = () => add(+b.dataset.add));
+  document.querySelectorAll("[data-set]").forEach((b) => b.onclick = () => { reset(); duration = remaining = +b.dataset.set; save(); render(); });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) { if (running) lock(); render(); } });
   render();
-  requestAnimationFrame(draw);
-}
-
-function stop() {
-  state.playing = false;
-  ticker.postMessage("stop");
-  releaseWakeLock();
-  lastBeat = null;
-  setArm(0);
-  for (const d of el.beats.children) d.classList.remove("on");
-  render();
-}
-
-/* ---------- Drawing, synced to the audio clock ---------- */
-
-let swingSide = 1;
-let lastBeat = null;
-function setArm(deg) { el.arm.setAttribute("transform", `rotate(${deg} 100 208)`); }
-
-function draw() {
-  if (!state.playing) return;
-  const now = ctx.currentTime;
-  let last = null;
-  while (scheduled.length && scheduled[0].time <= now) last = scheduled.shift() || last;
-  if (last) {
-    lastBeat = last;
-    swingSide = -swingSide;
-    const dots = el.beats.children;
-    for (let i = 0; i < dots.length; i++) dots[i].classList.toggle("on", i === last.beat);
-  }
-  if (lastBeat && !reduceMotion.matches) {
-    // The arm reaches an extreme on each beat, easing like a pendulum between.
-    const interval = 60 / state.bpm;
-    const p = Math.min(1, (now - lastBeat.time) / interval);
-    setArm(-swingSide * 24 * Math.cos(Math.PI * p));
-  }
-  requestAnimationFrame(draw);
-}
-
-/* ---------- Wake lock (ADVICE §9) ---------- */
-
-let wakeLock = null;
-async function requestWakeLock() {
-  try { wakeLock = await navigator.wakeLock?.request("screen"); } catch { wakeLock = null; }
-}
-function releaseWakeLock() { wakeLock?.release().catch(() => {}); wakeLock = null; }
-document.addEventListener("visibilitychange", () => {
-  // Browsers drop the lock when the page is hidden; take it back on return.
-  if (!document.hidden && state.playing) requestWakeLock();
-});
-
-/* ---------- Tap tempo ---------- */
-
-let taps = [];
-function tap() {
-  const t = performance.now();
-  if (taps.length && t - taps[taps.length - 1] > 2000) taps = [];
-  taps.push(t);
-  if (taps.length > 5) taps.shift();
-  if (taps.length >= 2) {
-    const gaps = taps.slice(1).map((v, i) => v - taps[i]);
-    setBpm(60000 / (gaps.reduce((a, b) => a + b) / gaps.length));
-  }
-}
-
-/* ---------- Input ---------- */
-
-el.start.addEventListener("click", () => (state.playing ? stop() : start()));
-el.tap.addEventListener("click", tap);
-el.slower.addEventListener("click", () => setBpm(state.bpm - 1));
-el.faster.addEventListener("click", () => setBpm(state.bpm + 1));
-el.tempo.addEventListener("input", (e) => setBpm(Number(e.target.value)));
-el.fewer.addEventListener("click", () => setBeats(state.beats - 1));
-el.more.addEventListener("click", () => setBeats(state.beats + 1));
-el.accent.addEventListener("click", () => { state.accent = !state.accent; save(); render(); });
-
-document.addEventListener("keydown", (e) => {
-  if (e.target.closest("button, input")) return; // let controls handle their own keys
-  if (e.code === "Space") { e.preventDefault(); el.start.click(); }
-  if (e.key === "t" || e.key === "T") tap();
-  if (e.key === "ArrowUp") { e.preventDefault(); setBpm(state.bpm + 1); }
-  if (e.key === "ArrowDown") { e.preventDefault(); setBpm(state.bpm - 1); }
-});
-
-/* ---------- The iPhone ringer switch (ADVICE §8) ---------- */
-
-const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent)
-  || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-if (isIOS) el.hint.textContent = "No sound? Check that your ringer switch isn't on silent.";
-
-/* ---------- Star link (ADVICE §2) ---------- */
-
-if (OWNER && APP_ID !== "local-app") {
-  el.star.href = `https://github.com/${OWNER}/${APP_ID}`;
-  el.star.hidden = false;
-}
-
-/* ---------- Offline (ADVICE §6) ---------- */
-
-if ("serviceWorker" in navigator && isSecureContext) {
-  navigator.serviceWorker.register("sw.js", { scope: "./" }).catch(() => {});
-}
-
-render();
+  if ("serviceWorker" in navigator && location.protocol.startsWith("http")) navigator.serviceWorker.register("sw.js").catch(() => {});
+})();
 </script>
 </body>
 </html>
